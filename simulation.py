@@ -20,6 +20,7 @@ class World:
                                            self.__maxY - 1)
         self.__wScreen.addshape("Bear.gif")
         self.__wScreen.addshape("Fish.gif")
+        self.__wScreen.addshape("Plant.gif")
         self.__wTurtle.hideturtle()
         
     def draw(self):
@@ -71,6 +72,9 @@ class World:
     def getMaxY(self):
         return self.__maxY
 
+    def getThingsList(self):
+        return self.__thingList
+
     def liveALittle(self):
         if self.__thingList != [ ]:
            aThing = random.randrange(len(self.__thingList))
@@ -101,6 +105,7 @@ class Fish:
         self.__world = None
 
         self.__breedTick = 0
+        self.__starveTick = 0
 
     def setX(self, newX):
         self.__xPos = newX
@@ -130,6 +135,31 @@ class Fish:
         self.__yPos = newY
         self.__turtle.goto(self.__xPos, self.__yPos)
 
+    def tryToEat(self):
+        offsetList = [(-1,1), (0,1) ,(1,1),
+                      (-1,0),        (1,0),
+                      (-1,-1),(0,-1),(1,-1)]
+        adjPrey = []     #create list of adjacent prey
+        for offset in offsetList:
+            newX = self.__xPos + offset[0]
+            newY = self.__yPos + offset[1]
+            if 0 <= newX < self.__world.getMaxX() and \
+                    0 <= newY < self.__world.getMaxY():
+                if (not self.__world.emptyLocation(newX, newY)) and \
+                        isinstance(self.__world.lookAtLocation(newX, newY), Plant):
+                    adjPrey.append(self.__world.lookAtLocation(newX, newY))
+
+        if len(adjPrey) > 0:  #if any Plant are adjacent, pick random Plant to eat
+            randomPrey = adjPrey[random.randrange(len(adjPrey))]
+            preyX = randomPrey.getX()
+            preyY = randomPrey.getY()
+
+            self.__world.delThing(randomPrey)  #delete the Plant
+            self.move(preyX, preyY)            #move to the Plants location
+            self.__starveTick = 0
+        else:
+            self.__starveTick = self.__starveTick + 1
+
     def liveALittle(self):
         offsetList = [(-1,1), (0,1), (1,1),
                       (-1,0),        (1,0),
@@ -150,8 +180,8 @@ class Fish:
             self.__breedTick = self.__breedTick + 1
             if self.__breedTick >= 12:  #if alive 12 or more ticks, breed
                 self.tryToBreed()
-
-            self.tryToMove()            #try to move
+            self.tryToEat()
+            self.tryToMove()    #try to move
 
     def tryToBreed(self):
         offsetList = [(-1,1), (0,1), (1,1),
@@ -204,6 +234,7 @@ class Bear:
 
         self.__starveTick = 0
         self.__breedTick = 0
+        self.__energyLevel = 20
 
     def setX(self, newX):
         self.__xPos = newX
@@ -220,6 +251,9 @@ class Bear:
     def setWorld(self, aWorld):
         self.__world = aWorld
 
+    def getEnergyLevel(self):
+        return self.__energyLevel
+
     def appear(self):
         self.__turtle.goto(self.__xPos, self.__yPos)
         self.__turtle.showturtle()
@@ -231,7 +265,11 @@ class Bear:
         self.__world.moveThing(self.__xPos, self.__yPos, newX, newY)
         self.__xPos = newX
         self.__yPos = newY
-        self.__turtle.goto(self.__xPos, self.__yPos)
+        self.__energyLevel -= 1
+        if self.__energyLevel <= 0:
+            self.__world.delThing(self)
+        else:
+            self.__turtle.goto(self.__xPos, self.__yPos)
 
     def tryToBreed(self):
         offsetList = [(-1,1), (0,1), (1,1),
@@ -247,11 +285,14 @@ class Bear:
             randomOffset = offsetList[randomOffsetIndex]
             nextX = self.__xPos + randomOffset[0]
             nextY = self.__yPos + randomOffset[1]
-
-        if self.__world.emptyLocation(nextX, nextY):
-           childThing = Bear()
-           self.__world.addThing(childThing, nextX, nextY)
-           self.__breedTick = 0     #reset breedTick
+        self.__energyLevel -= 1
+        if self.getEnergyLevel() <= 0:
+            self.__world.delThing(self)
+        else:
+            self.__world.emptyLocation(nextX, nextY)
+            childThing = Bear()
+            self.__world.addThing(childThing, nextX, nextY)
+            self.__breedTick = 0     #reset breedTick
 
     def tryToMove(self):
         offsetList = [(-1,1), (0,1), (1,1),
@@ -301,19 +342,80 @@ class Bear:
             randomPrey = adjPrey[random.randrange(len(adjPrey))]
             preyX = randomPrey.getX()
             preyY = randomPrey.getY()
-
             self.__world.delThing(randomPrey)  #delete the Fish
-            self.move(preyX, preyY)            #move to the Fishs location
+            self.move(preyX, preyY)    #move to the Fishs location
+            self.__energyLevel += 5
             self.__starveTick = 0
         else:
             self.__starveTick = self.__starveTick + 1
 
+class Plant:
+    def __init__(self):
+        self.__turtle = turtle.Turtle()
+        self.__turtle.up()
+        self.__turtle.hideturtle()
+        self.__turtle.shape("Plant.gif")
+        self.__xPos = 0
+        self.__yPos = 0
+        self.__world = None
+        self.__breedTick = 0
+
+    def setX(self, newX):
+        self.__xPos = newX
+
+    def setY(self, newY):
+        self.__yPos = newY
+
+    def getX(self):
+        return self.__xPos
+
+    def getY(self):
+        return self.__yPos
+
+    def setWorld(self, aWorld):
+        self.__world = aWorld
+
+    def appear(self):
+        self.__turtle.goto(self.__xPos, self.__yPos)
+        self.__turtle.showturtle()
+
+    def hide(self):
+        self.__turtle.hideturtle()
+
+    def liveALittle(self):
+        self.__breedTick = self.__breedTick + 1
+        if self.__breedTick >= 5:
+            self.tryToBreed()
+
+    def tryToBreed(self):
+        offsetList = [(-1,1), (0,1), (1,1),
+                          (-1,0),        (1,0),
+                          (-1,-1),(0,-1),(1,-1)]
+        randomOffsetIndex = random.randrange(len(offsetList))
+        randomOffset = offsetList[randomOffsetIndex]
+        nextX = self.__xPos + randomOffset[0]
+        nextY = self.__yPos + randomOffset[1]
+        while not (0 <= nextX < self.__world.getMaxX() and \
+                   0 <= nextY < self.__world.getMaxY() ):
+            randomOffsetIndex = random.randrange(len(offsetList))
+            randomOffset = offsetList[randomOffsetIndex]
+            nextX = self.__xPos + randomOffset[0]
+            nextY = self.__yPos + randomOffset[1]
+
+        if self.__world.emptyLocation(nextX, nextY):
+            childThing = Plant()
+            self.__world.addThing(childThing, nextX, nextY)
+            self.__breedTick = 0
+
 def mainSimulation():
     numberOfBears = 10
     numberOfFish = 10
+    numberOfPlants = 10
     worldLifeTime = 2500
     worldWidth = 50
     worldHeight = 25
+    bearCountList = []
+    fishCountList = []
  
 
     myWorld = World(worldWidth, worldHeight)
@@ -337,9 +439,26 @@ def mainSimulation():
             y = random.randrange(myWorld.getMaxY())
         myWorld.addThing(newBear, x, y)
 
+        for i in range(numberOfPlants):
+            newPlant = Plant()
+        x = random.randrange(myWorld.getMaxX())
+        y = random.randrange(myWorld.getMaxY())
+        while not myWorld.emptyLocation(x, y):
+            x = random.randrange(myWorld.getMaxX())
+            y = random.randrange(myWorld.getMaxY())
+        myWorld.addThing(newPlant, x, y)
+
     for i in range(worldLifeTime):
         myWorld.liveALittle()
+        bearCount = sum(isinstance(thing, Bear) for thing in myWorld.getThingsList())
+        fishCount = sum(isinstance(thing, Fish) for thing in myWorld.getThingsList())
+        bearCountList.append(bearCount)
+        fishCountList.append(fishCount)
 
     myWorld.freezeWorld()
+
+    with open("simulation_data.txt", "w", encoding='utf-8') as file:
+        for i in range(worldLifeTime):
+            file.write(f"{i}, {fishCountList[i]}, {bearCountList[i]}\n")
 
 mainSimulation()
